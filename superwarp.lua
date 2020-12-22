@@ -29,7 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ]]
 
 --[[
-    Special thanks to those that have helped with specific areas of Superwarp: 
+    Special thanks to those that have helped with specific areas of Superwarp:
         Waypoint currency calculations: Ivaar, Thorny
         Same-Zone warp data collection: Kenshi
         Escha domain elvorseal packets: Ivaar
@@ -168,13 +168,17 @@ end
 local function order_participants(participants)
     local player = windower.ffxi.get_player().name
     if settings.send_all_order_mode ~= 'alphabetical' then
-        participants:delete(player)
+        if participants:contains(player) then
+            participants:delete(player)
+        else
+            player = nil
+        end
     end
     table.sort(participants)
     if settings.send_all_order_mode == 'melast' then
-        participants:append(player)
+        if player then participants:append(player) end
     elseif settings.send_all_order_mode == 'mefirst' then
-        participants = T{player}:extend(participants)
+        if player then participants = T{player}:extend(participants) end
     end
     return participants
 end
@@ -190,6 +194,15 @@ local function get_party_members(local_members)
     end
 
     return members
+end
+
+local function get_others(participants)
+    local player = windower.ffxi.get_player().name
+    if participants:contains(player) then
+        participants:delete(player)
+    end
+
+    return participants
 end
 
 function wiggle_value(value, variation)
@@ -291,14 +304,14 @@ local function resolve_warp(map_name, zone, sub_zone)
             end
         else
             debug("Found zone settings. No sub-zones defined.")
-            return zone_map, closest_zone_name    
+            return zone_map, closest_zone_name
         end
     else
         log('Search returned no matches: '..zone)
         debug('Failed search. Term="'..zone..'", nearest match="'..(closest_zone_name or nil)..'", value='..(closest_zone_value or '-1'))
         return nil
     end
-end 
+end
 
 function poke_npc(id, index)
     local first_poke = true
@@ -309,7 +322,7 @@ function poke_npc(id, index)
             if state.loop_count > 0 then
                 state.loop_count = state.loop_count - 1
                 log("Timed out waiting for response from the poke. Retrying...")
-            else 
+            else
                 log("Timed out waiting for response from the poke.")
                 current_activity = nil
                 return
@@ -543,11 +556,11 @@ local function do_find_missing_destinations(map_name, args)
     elseif npc and npc.id and npc.index and dist <= 6^2 then
         local max_results = 999999
         if #args > 0 then
-            max_results = tonumber(args[1]) or 999999 
+            max_results = tonumber(args[1]) or 999999
         end
         current_activity = {type=map_name, find_missing=true, missing_max=max_results, args=args, npc=npc}
         poke_npc(npc.id, npc.index)
-    end    
+    end
 end
 
 local function handle_warp(warp, args, fast_retry, retries_remaining)
@@ -560,19 +573,25 @@ local function handle_warp(warp, args, fast_retry, retries_remaining)
     end
     state.fast_retry = fast_retry
 
-    -- because I can't stop typing "hp warp X" because I've been trained. 
+    -- because I can't stop typing "hp warp X" because I've been trained.
     if args[1]:lower() == 'warp' or args[1]:lower() == 'w' then args:remove(1) end
 
     local all = S{'all','a','@all'}:contains(args[1]:lower())
+    local other = S{'other','o','@other'}:contains(args[1]:lower())
+    local other_party = S{'other_party','op','@other_party'}:contains(args[1]:lower())
     local party = S{'party','p','@party'}:contains(args[1]:lower())
-    if all or party then 
-        args:remove(1) 
+    if all or other or party or other_party then
+        args:remove(1)
 
         local participants = nil
         if all then
             participants = get_participants()
+        elseif other then
+            participants = get_others(get_participants())
         elseif party then
             participants = get_party_members(get_participants())
+        elseif other_party then
+            participants = get_others(get_party_members(get_participants()))
         end
         participants = order_participants(participants)
         debug('sending warp to all: '..participants:concat(', '))
@@ -582,7 +601,7 @@ local function handle_warp(warp, args, fast_retry, retries_remaining)
         return
     end
     if args[1]:lower() == 'missing' then
-        args:remove(1)         
+        args:remove(1)
         for key,map in pairs(maps) do
             if map.short_name == warp then
                 do_find_missing_destinations(key, args)
@@ -660,7 +679,7 @@ windower.register_event('addon command', function(...)
         end
 
     elseif cmd == 'reset' then
-        reset()    
+        reset()
         if args[1] and args[1]:lower() == 'all' then
             windower.send_ipc_message('reset')
         end
@@ -669,7 +688,7 @@ windower.register_event('addon command', function(...)
         settings.debug = not settings.debug
         log('Debug is now '..tostring(settings.debug))
         settings:save()
-        if settings.debug then 
+        if settings.debug then
             for _, m in ipairs(state.debug_stack) do
                 log(m)
             end
@@ -708,7 +727,7 @@ local function perform_next_action()
             debug("all actions complete")
             if last_action and last_action.expecting_zone then
                 debug("expecting zone")
-                -- we're going to zone. 
+                -- we're going to zone.
                 expecting_zone = true
             else
             	state.client_lock = false
@@ -723,7 +742,7 @@ local function perform_next_action()
         elseif not state.fast_retry and current_action.wait_packet then
             debug("waiting for packet 0x"..current_action.wait_packet:hex().." for action "..tostring(current_activity.action_index)..' '..(current_action.description or ''))
             current_action.wait_start = os.time()
-            if not current_action.timeout then 
+            if not current_action.timeout then
                 current_action.timeout = settings.default_packet_wait_timeout
             end
             local fn = function(s, ca, i, p, d)
@@ -780,7 +799,7 @@ local function perform_next_action()
     end
 end
 
--- Handle menu interraction. 
+-- Handle menu interraction.
 windower.register_event('incoming chunk',function(id,data,modified,injected,blocked)
     if current_activity and current_activity.action_queue and current_activity.running then
         local current_action = current_activity.action_queue[current_activity.action_index]
@@ -790,7 +809,7 @@ windower.register_event('incoming chunk',function(id,data,modified,injected,bloc
             current_action.incoming_packet = packets.parse('incoming',data)
             perform_next_action()
         end
-    end 
+    end
 
     if id == 0x37 and not injected and state.client_lock then
         local p = packets.parse('incoming', data)
@@ -815,7 +834,7 @@ windower.register_event('incoming chunk',function(id,data,modified,injected,bloc
 
     if id == 0x034 or id == 0x032 then
         local p = packets.parse('incoming', data)
-        
+
         if current_activity and not current_activity.running then
             current_activity.caught_poke = true
             local zone = windower.ffxi.get_info()['zone']
@@ -853,7 +872,7 @@ windower.register_event('incoming chunk',function(id,data,modified,injected,bloc
                             log("You are not missing any destinations.")
                         end
                     else
-                        log("An unknown error occurred when finding missing destinations.")                        
+                        log("An unknown error occurred when finding missing destinations.")
                     end
                 end
 
@@ -917,7 +936,7 @@ windower.register_event('outgoing chunk',function(id,data,modified,injected,bloc
 end)
 windower.register_event('zone change',function(id,data,modified,injected,blocked)
 	state.client_lock = false
-    if expecting_zone then 
+    if expecting_zone then
         handle_on_arrival:schedule(math.max(0, settings.command_delay_on_arrival))
     end
     expecting_zone = false

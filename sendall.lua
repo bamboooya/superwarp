@@ -47,8 +47,8 @@ function get_participants()
 end
 
 
--- handle the ipc messages. 
-windower.register_event('ipc message', function(msg) 
+-- handle the ipc messages.
+windower.register_event('ipc message', function(msg)
     local args = msg:split(' ')
     local cmd = args[1]
     args:remove(1)
@@ -58,7 +58,7 @@ windower.register_event('ipc message', function(msg)
         windower.send_ipc_message('polo '..player)
 
     elseif cmd == 'polo' then
-        if participating_characters ~= nil then 
+        if participating_characters ~= nil then
             participating_characters:append(args[1])
         end
     elseif cmd == 'execute' and args[1] == player then
