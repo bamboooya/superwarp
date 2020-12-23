@@ -52,16 +52,18 @@ windower.register_event('ipc message', function(msg)
     local args = msg:split(' ')
     local cmd = args[1]
     args:remove(1)
-    local player = windower.ffxi.get_mob_by_target('me').name
+    local player = windower.ffxi.get_mob_by_target('me')
+    if not player then return end
+    local player_name = player.name
 
     if cmd == 'marco' then
-        windower.send_ipc_message('polo '..player)
+        windower.send_ipc_message('polo '..player_name)
 
     elseif cmd == 'polo' then
         if participating_characters ~= nil then
             participating_characters:append(args[1])
         end
-    elseif cmd == 'execute' and args[1] == player then
+    elseif cmd == 'execute' and args[1] == player_name then
         args:remove(1)
         receive_send_all(args:concat(' '))
 

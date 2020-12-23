@@ -79,8 +79,8 @@ local defaults = {
     send_all_delay = 0.4,                   -- delay (seconds) between each character
     max_retries = 6,                        -- max retries for loading NPCs.
     retry_delay = 2,                        -- delay (seconds) between retries
-    simulated_response_time = 0,            -- response time (seconds) for selecting a single menu item. Note this can happen multiple times per warp.
-    simulated_response_variation = 0,       -- random variation (seconds) from the base simulated_response_time in either direction (+ or -)
+    simulated_response_time = 2,            -- response time (seconds) for selecting a single menu item. Note this can happen multiple times per warp.
+    simulated_response_variation = 1,       -- random variation (seconds) from the base simulated_response_time in either direction (+ or -)
     default_packet_wait_timeout = 5,        -- timeout (seconds) for waiting on a packet response before continuing on.
     enable_same_zone_teleport = true,       -- enable teleporting between points in the same zone. This is the default behavior in-game. Turning it off will look different than teleporting manually.
     enable_fast_retry_on_interrupt = false, -- after an event skip event, attempt a fast-retry that doesn't wait for packets or delay.
@@ -201,6 +201,14 @@ local function get_others(participants)
     if participants:contains(player) then
         participants:delete(player)
     end
+
+    return participants
+end
+
+local function get_self()
+    local player = windower.ffxi.get_mob_by_target('me').name
+    participants = T{}
+    participants:append(player)
 
     return participants
 end
@@ -580,7 +588,8 @@ local function handle_warp(warp, args, fast_retry, retries_remaining)
     local other = S{'other','o','@other'}:contains(args[1]:lower())
     local other_party = S{'other_party','op','@other_party'}:contains(args[1]:lower())
     local party = S{'party','p','@party'}:contains(args[1]:lower())
-    if all or other or party or other_party then
+    local self = S{'self','s','@self'}:contains(args[1]:lower())
+    if all or other or party or other_party or self then
         args:remove(1)
 
         local participants = nil
@@ -592,6 +601,8 @@ local function handle_warp(warp, args, fast_retry, retries_remaining)
             participants = get_party_members(get_participants())
         elseif other_party then
             participants = get_others(get_party_members(get_participants()))
+        elseif self then
+            participants = get_self()
         end
         participants = order_participants(participants)
         debug('sending warp to all: '..participants:concat(', '))
